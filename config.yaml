@@ -48,10 +48,13 @@ lora:
   task_type: CAUSAL_LM
 
 train:
+  # Tuned for a single 16 GB RTX 4090 (QLoRA, 7B). If you hit CUDA OOM: set
+  # per_device_train_batch_size=1 / gradient_accumulation_steps=16, or drop
+  # data.max_seq_len to 768.
   output_dir: checkpoints/run
   num_train_epochs: 3
-  per_device_train_batch_size: 4
-  gradient_accumulation_steps: 4
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 8   # effective batch = 16
   learning_rate: 2.0e-4
   lr_scheduler_type: cosine
   warmup_ratio: 0.03
@@ -90,7 +93,10 @@ eval:
     max_regression_pct: 5.0       # flag if general perf drops more than this
 
 serve:
-  engine: vllm                    # vllm | ollama
+  # NOTE: vLLM has no native Windows build. On native Windows use engine=ollama
+  # (merge the adapter first, see src/inference/adapter_loader.py:merged_export),
+  # or run the vLLM path inside WSL2.
+  engine: ollama                  # vllm | ollama
   host: 0.0.0.0
   port: 8000
   max_model_len: 4096
