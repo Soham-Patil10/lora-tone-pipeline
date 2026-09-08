@@ -1,0 +1,104 @@
+# ---------------------------------------------------------------------------
+# Central config. Every run must be reproducible from this file alone.
+# Load with src/utils/io.py:load_config(). Override on the CLI with dotted keys,
+# e.g.  python -m src.training.train --config config.yaml --set lora.rank=32
+# ---------------------------------------------------------------------------
+
+project:
+  name: cs-tone-matching-lora
+  domain: customer_support_tone_matching
+  task: >-
+    Rewrite a draft support reply so it matches the company brand voice
+    (warm, empathetic, professional, concise, solution-oriented) without
+    changing the factual content or the policy outcome.
+  seed: 42
+
+paths:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  eval_benchmark: data/eval_benchmark/handcrafted_eval.jsonl
+  checkpoints_dir: checkpoints
+  adapter_out_dir: adapters/cs-tone-lora
+  reports_dir: reports
+
+data:
+  # instruction-following schema: see data/schema.md
+  train_file: data/processed/train.jsonl
+  val_file: data/processed/val.jsonl
+  test_file: data/processed/test.jsonl
+  split_ratios: [0.8, 0.1, 0.1]
+  min_examples: 500
+  max_examples: 2000
+  dedup_threshold: 0.92          # cosine sim above this = duplicate
+  max_seq_len: 1024
+
+model:
+  base_model: mistralai/Mistral-7B-Instruct-v0.3   # or meta-llama/Meta-Llama-3-8B-Instruct
+  load_in_4bit: true              # QLoRA on consumer GPU
+  bnb_4bit_compute_dtype: bfloat16
+  trust_remote_code: false
+  chat_template: null             # null = use tokenizer default
+
+lora:
+  rank: 16
+  alpha: 32                       # ~2x rank
+  dropout: 0.05
+  target_modules: [q_proj, v_proj]   # sweep can widen to k_proj,o_proj,gate,up,down
+  bias: none
+  task_type: CAUSAL_LM
+
+train:
+  output_dir: checkpoints/run
+  num_train_epochs: 3
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.03
+  weight_decay: 0.0
+  max_grad_norm: 0.3
+  optim: paged_adamw_8bit
+  logging_steps: 10
+  eval_steps: 50
+  save_steps: 50
+  save_total_limit: 3
+  early_stopping_patience: 3      # eval cycles without val_loss improvement
+  bf16: true
+  gradient_checkpointing: true
+  packing: false
+
+sweep:
+  grid:
+    lora.rank: [8, 16, 32]
+    train.learning_rate: [1.0e-4, 2.0e-4, 5.0e-4]
+    train.num_train_epochs: [1, 3, 5]
+  select_metric: val_tone_score   # maximised on the validation set
+  max_runs: 9
+
+eval:
+  prompt_template: default        # key in src/utils/prompt_templates.py
+  metrics: [tone_score, content_preservation, format_valid, rouge_l]
+  categories: [billing, technical, angry_complaint, cancellation, praise, edge_case]
+  llm_judge:
+    enabled: true
+    model: gpt-4o
+    scale: 5
+    blind: true                   # randomise A/B order, hide which is fine-tuned
+  forgetting:
+    enabled: true
+    suites: [arc_easy, hellaswag, ifeval_subset]
+    max_regression_pct: 5.0       # flag if general perf drops more than this
+
+serve:
+  engine: vllm                    # vllm | ollama
+  host: 0.0.0.0
+  port: 8000
+  max_model_len: 4096
+  dtype: bfloat16
+  gpu_memory_utilization: 0.90
+
+tracking:
+  backend: wandb                  # wandb | mlflow
+  wandb_project: cs-tone-matching-lora
+  wandb_entity: null
+  log_gpu_memory: true

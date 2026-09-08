@@ -1,0 +1,19 @@
+# Serving image — base model + LoRA adapter behind FastAPI (vLLM backend).
+# Build:  docker build -f docker/Dockerfile.serve -t cs-tone-serve .
+# Run:    docker run --gpus all -p 8000:8000 -p 8001:8001 \
+#            -v $PWD/adapters:/app/adapters cs-tone-serve
+
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1 PYTHONPATH=/app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3.11 python3-pip && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+EXPOSE 8000 8001
+# serve.py = OpenAI-compatible endpoint; ab_compare_api.py = demo A/B endpoint
+CMD ["uvicorn", "src.inference.serve:app", "--host", "0.0.0.0", "--port", "8000"]

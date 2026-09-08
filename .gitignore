@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ML artifacts
+checkpoints/*
+!checkpoints/.gitkeep
+adapters/
+*.safetensors
+*.bin
+*.gguf
+wandb/
+experiments/wandb/*
+!experiments/wandb/.gitkeep
+mlruns/
+
+# Data (keep small curated splits + schema, ignore raw dumps)
+data/raw/
+data/interim/
+*.parquet
+
+# OS
+.DS_Store
+Thumbs.db

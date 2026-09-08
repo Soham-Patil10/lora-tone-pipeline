@@ -1,0 +1,2 @@
+run_id,lora.rank,train.learning_rate,train.num_train_epochs,val_loss,val_tone_score,val_content_preservation,gpu_mem_gb,minutes
+# populated by src/training/sweep.py — one row per grid cell, best row copied into config.yaml
